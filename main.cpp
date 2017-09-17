@@ -33,7 +33,8 @@ bool existsInDef(vector<vector<pair<string, int>>>& defcountlist, string symbol,
 
 void parser_1(vector<vector<pair<string, int>>>& defcountlist,
               vector<vector<string>>& usecountlist,
-              vector<vector<pair<string, string>>>& codecountlist,vector<int>& globaddr) {
+              vector<vector<pair<string, string>>>& codecountlist,vector<int>& globaddr,
+              vector<pair<string, int>>& symbol_table) {
 
     string filename("input-1");
 
@@ -144,10 +145,13 @@ void parser_1(vector<vector<pair<string, int>>>& defcountlist,
         cout << "symbol table \n";
         for (auto & row: defcountlist) {
             for (auto & col: row) {
-                cout << col.first << " = " << col.second << endl;
+                // cout << col.first << " = " << col.second << endl;
+                symbol_table.push_back(col);
             }
         }
 
+        for (auto & item : symbol_table)
+            cout << item.first << " = " << item.second << endl;
         cout << "use list \n";
         for (auto & row: usecountlist) {
             for (auto & col: row) {
@@ -167,8 +171,11 @@ void parser_1(vector<vector<pair<string, int>>>& defcountlist,
 
 void parser_2(vector<vector<pair<string, int>>> defcountlist,
               vector<vector<string>> usecountlist,
-              vector<vector<pair<string, string>>> codecountlist,vector<int> globaddr) {
+              vector<vector<pair<string, string>>> codecountlist,
+              vector<int> globaddr,
+              vector<pair<string,int>> symbol_table) {
 
+    /*
     vector<vector<bool>> def_flag(defcountlist.size());
     for (int i = 0; i < defcountlist.size(); i++) {
         vector<bool> temp_flag(defcountlist[i].size(), false);
@@ -181,7 +188,6 @@ void parser_2(vector<vector<pair<string, int>>> defcountlist,
         use_flag[i] = temp_flag;
     }
 
-    cout << "Symbol Table" << endl;
     for (int i = 0; i < defcountlist.size(); i++) {
         for (int j = 0; j < defcountlist[i].size(); j++) {
             if (defcountlist[i][j].second > codecountlist[i].size()) {
@@ -191,6 +197,11 @@ void parser_2(vector<vector<pair<string, int>>> defcountlist,
             cout << defcountlist[i][j].first << " = " << defcountlist[i][j].second << endl;
         }
     }
+    */
+    cout << "Symbol Table" << endl;
+    for (auto & item: symbol_table)
+        cout << item.first << " = " << item.second << endl;
+
     cout << "Memory Map" << endl;
 
     int c = 0;
@@ -222,24 +233,32 @@ void parser_2(vector<vector<pair<string, int>>> defcountlist,
             }
             else {
                 int mod = addr % 1000;
+                /*
                 if (mod >= usecount.size()) {
                     cout << c << " " << addr << " Error: External address exceeds length of uselist; treated as immediate" << endl;
                     c += 1;
                     continue;
                 }
+                */
                 symbol = usecount[mod];
-                use_flag[modcount][mod] = true;
-                for (int k = 0; k < defcountlist.size(); k++) {
-                    for (int l = 0; l < defcountlist[k].size(); l++) {
-                        if (symbol == defcountlist[k][l].first) {
-                            int disp = defcountlist[k][l].second;
-                            addr -= mod;
-                            addr += disp;
-                            def_flag[k][l] = true;
-                        }
+                //use_flag[modcount][mod] = true;
+                for (auto & item : symbol_table) {
+                    if (symbol == item.first) {
+                        addr -= mod;
+                        addr += item.second;
                     }
-
                 }
+//                for (int k = 0; k < defcountlist.size(); k++) {
+//                    for (int l = 0; l < defcountlist[k].size(); l++) {
+//                        if (symbol == defcountlist[k][l].first) {
+//                            int disp = defcountlist[k][l].second;
+//                            addr -= mod;
+//                            addr += disp;
+//                            //def_flag[k][l] = true;
+//                        }
+//                    }
+//
+//                }
                 int modnum = 0;
                 int symbnum = 0;
                 if (existsInDef(defcountlist, symbol, modnum, symbnum))
@@ -252,13 +271,16 @@ void parser_2(vector<vector<pair<string, int>>> defcountlist,
 
         }
         //rule 7
+        /*
         for (int l = 0; l < use_flag[modcount].size(); l++) {
             if (use_flag[modcount][l] == false) {
                 cout << "Warning: Module " << modcount+1 << ": " << usecountlist[modcount][l] << " appeared in the uselist but was not actually used" << endl;
             }
         }
+        */
     }
     // rule 4
+    /*
     for (int k = 0; k < def_flag.size(); k++) {
         for (int l = 0; l < def_flag[k].size(); l++) {
             if (def_flag[k][l] == false) {
@@ -266,6 +288,7 @@ void parser_2(vector<vector<pair<string, int>>> defcountlist,
             }
         }
     }
+    */
 }
 
 int main() {
@@ -279,12 +302,14 @@ int main() {
     vector<vector<pair<string, string>>> codecountlist;
     // vector of global address
     vector<int> globaddr;
+    // vector of symbol table
+    vector<pair<string, int>> symbol_table;
     cout << "Parser_1 is called" << endl;
-    parser_1(defcountlist, usecountlist,codecountlist,globaddr);
+    parser_1(defcountlist, usecountlist,codecountlist,globaddr, symbol_table);
     // parser1 would generate the symbol table, and the global address of each module
-    //cout << "Parser_2 is called" << endl;
+    cout << "Parser_2 is called" << endl;
     // parser2 would update R and E with global address and symbol table
-    //parser_2(defcountlist, usecountlist,codecountlist,globaddr);
+    parser_2(defcountlist, usecountlist,codecountlist,globaddr, symbol_table);
 
     return 1;
 }
