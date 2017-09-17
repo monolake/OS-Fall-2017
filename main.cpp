@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <regex>
+#include <utility>
 using namespace std;
 
 vector<string> split(string &s){
@@ -29,41 +30,27 @@ bool existsInDef(vector<vector<pair<string, int>>>& defcountlist, string symbol,
     return false;
 }
 
-void parser_1(vector<vector<pair<string, int>>>& defcountlist, vector<vector<string>>& usecountlist,vector<vector<pair<string, string>>>& codecountlist,vector<int>& globaddr) {
 
-    fstream fin("input-11", fstream::in);
-    //fstream fout("output-2", fstream::out);
+void parser_1(vector<vector<pair<string, int>>>& defcountlist,
+              vector<vector<string>>& usecountlist,
+              vector<vector<pair<string, string>>>& codecountlist,vector<int>& globaddr) {
+
+    string filename("input-1");
+
+    ifstream fin(filename.c_str());
     string line;
     string everything;
     int linenum = 0;
     int lineoffset = 0;
     if (fin.is_open()) {
         while (getline(fin, line)) {
-            linenum += 1;
+            linenum += 1; // line number counted from 1
             vector<string> space_split = split(line);
             for (int i = 0; i < space_split.size(); i++){
                 string token = space_split[i];
-                if (regex_match(token, regex("[[:alpha:]][[:alnum:]]{0,15}"))) {
-                    if (token != "I" && token != "A" && token != "R" && token != "E") {
-                        //cout << "symbol " << space_split[i] << " ";
-                        //everything += "symbol ";
-                        everything += space_split[i];
-                        everything += " ";
-                    }
-                    else {
-                        //cout << "instr " << space_split[i] << " ";
-                        //everything += "instr ";
-                        everything += space_split[i];
-                        everything += " ";
-                    }
-                }
-                else if (regex_match(token, regex("[[:digit:]][[:digit:]]*"))) {
-                    //cout << "number " << space_split[i] << " ";
-                    //everything += "number ";
-                    everything += space_split[i];
-                    everything += " ";
-                }
-
+                cout << token << endl;
+                everything += space_split[i];
+                everything += " ";
             }
 
         }
@@ -71,13 +58,14 @@ void parser_1(vector<vector<pair<string, int>>>& defcountlist, vector<vector<str
         vector<string> sep = split(everything);
 
 
+
         int i = 0;
-        //cout << "size of tokens " << sep.size() << endl;
+
+        cout << "size of tokens " << sep.size() << endl;
         int glob = 0;
 
         while (i < sep.size()) {
-            //start with deflist, then uselist, then program text
-            //cout << "+" << glob << endl;
+            cout << glob << endl;
             globaddr.push_back(glob);
 
             string token = sep[i];
@@ -93,26 +81,32 @@ void parser_1(vector<vector<pair<string, int>>>& defcountlist, vector<vector<str
                 convert.clear();
                 convert.str(sep[j+1]);
                 convert >> addr;
+                /*
                 int modnum = 0;
                 int symbnum = 0;
+
                 if (existsInDef(defcountlist, sep[j], modnum, symbnum)) {
                     //cout << modnum << " " << symbnum << endl;
                     cout << sep[j] << "=" << defcountlist[modnum][symbnum].second << " Error: This variable is multiple times defined; first value used" << endl;
                     break;
                 }
+                */
                 deftemp.push_back(make_pair(sep[j], addr + glob));
                 //cout << sep[j] << " = " << addr + glob << endl;
                 j += 2;
             }
             defcountlist.push_back(deftemp);
-            //cout << "defcount printed" << endl;
-            i += (1 + defcount * 2);
+            cout << "defcount printed" << endl;
+
+            i += (1 + defcount * 2); // pointer moves to use list
             token = sep[i];
             int usecount = 0;
             convert.clear();
             convert.str(token);
             convert >> usecount;
-            //cout << "usecount is " << usecount << endl;
+
+            cout << "usecount is " << usecount << endl;
+
             j = i+1;
             vector<string> usetemp;
             while (j < i+1+usecount) {
@@ -120,15 +114,18 @@ void parser_1(vector<vector<pair<string, int>>>& defcountlist, vector<vector<str
                 //cout << sep[j] << " ";
                 j += 1;
             }
-            //cout << endl;
             usecountlist.push_back(usetemp);
             //cout << "usecound printed" << endl;
-            i += (1 + usecount);
+
+            i += (1 + usecount); // pointer moves to def list
             token = sep[i];
             int codecount = 0;
             convert.clear();
             convert.str(token);
             convert >> codecount;
+
+            cout << "codecount is " << codecount << endl;
+
             j = i+1;
             vector<pair<string, string>> codetemp;
             while (j < i+1+codecount*2) {
@@ -138,17 +135,39 @@ void parser_1(vector<vector<pair<string, int>>>& defcountlist, vector<vector<str
             }
             codecountlist.push_back(codetemp);
             //cout << "defcount printed" << endl;
-            i += (1 + codecount * 2);
+            i += (1 + codecount * 2); // pointer moves to the next module def list
             glob += codecount;
+            cout << "glob is " << glob << endl;
+            cout << "i is " << i << endl;
         }
 
+        cout << "symbol table \n";
+        for (auto & row: defcountlist) {
+            for (auto & col: row) {
+                cout << col.first << " = " << col.second << endl;
+            }
+        }
 
+        cout << "use list \n";
+        for (auto & row: usecountlist) {
+            for (auto & col: row) {
+                cout << col << endl;
+            }
+        }
+
+        cout << "num instructions \n";
+        for (auto & row: codecountlist) {
+            for (auto & col: row) {
+                cout << col.first << " " << col.second << endl;
+            }
+        }
         fin.close();
-        //fout.close();
     }
 }
 
-void parser_2(vector<vector<pair<string, int>>> defcountlist, vector<vector<string>> usecountlist, vector<vector<pair<string, string>>> codecountlist,vector<int> globaddr) {
+void parser_2(vector<vector<pair<string, int>>> defcountlist,
+              vector<vector<string>> usecountlist,
+              vector<vector<pair<string, string>>> codecountlist,vector<int> globaddr) {
 
     vector<vector<bool>> def_flag(defcountlist.size());
     for (int i = 0; i < defcountlist.size(); i++) {
@@ -252,14 +271,20 @@ void parser_2(vector<vector<pair<string, int>>> defcountlist, vector<vector<stri
 int main() {
 
     cout << "This is a good start" << endl;
+    // 1st dim: pair (symbol, relative addr); 2 dim: number of symbols defined in module; 3 dim: number of modules
     vector<vector<pair<string, int>>> defcountlist;
+    // 1st dim: number of symbols being used; 2 dim: vector for each module
     vector<vector<string>> usecountlist;
+    // 1st dim: pair (type, instr); 2 dim: number of codes for this module; 3 dim: number of modules
     vector<vector<pair<string, string>>> codecountlist;
+    // vector of global address
     vector<int> globaddr;
     cout << "Parser_1 is called" << endl;
     parser_1(defcountlist, usecountlist,codecountlist,globaddr);
-    cout << "Parser_2 is called" << endl;
-    parser_2(defcountlist, usecountlist,codecountlist,globaddr);
+    // parser1 would generate the symbol table, and the global address of each module
+    //cout << "Parser_2 is called" << endl;
+    // parser2 would update R and E with global address and symbol table
+    //parser_2(defcountlist, usecountlist,codecountlist,globaddr);
 
     return 1;
 }
