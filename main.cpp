@@ -102,40 +102,6 @@ void readToken(ifstream & fin, int & cur_linenum, int & cur_offset, string & tok
         }
         exit(1);
     }
-    //use getline
-//    if(getline(fin, last_token, '\t'))
-//        cout << " cur line by \t is " << last_token << endl;
-//    if(getline(fin, last_token, ' '))
-//        cout << " cur line by space is " << last_token << endl;
-//    if(getline(fin, last_token, '\n'))
-//        cout << " cur line by \n is " << last_token << endl;
-
-//    if (cur_offset == -1)
-//        cur_offset = 0;
-//    if (cur_offset == 0) {
-//        if (getline(fin, last_token)) {
-//            cout << last_token << endl;
-//            cur_linenum++;
-//        }
-//        else {
-//            cout << "end of file is reached " << endl;
-//            parseerror(1, cur_linenum, cur_offset);
-//        }
-//        while (last_token.empty()){
-//            getline(fin, last_token);
-//            cur_linenum++;
-//        }
-//    }
-//    //cout << cur_offset << endl;
-//    //cout << last_token << endl;
-//    stringstream ss(last_token);
-//    ss.seekg(cur_offset, ss.beg);
-//    ss >> token;
-//    if (ss.tellg() == -1) {
-//        cout << "line: " << cur_linenum << " offset: " << ss.tellg() - token.size() << " token: " << token << endl;
-//        cur_offset = ss.tellg() - token.size();
-//    }
-//    ss.clear();
 
 }
 
@@ -491,7 +457,7 @@ int main() {
 
     vector<int> module_global_addr;
 
-    string filename = "input-18";
+    string filename = "input-1";
 
     pass1(module_global_addr, filename);
 
