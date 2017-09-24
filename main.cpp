@@ -11,6 +11,11 @@ using namespace std;
 int last_valid_pos = 0;
 map<string, pair<int, int>> local_module_list;
 map<string, pair<int,int>> symbol_table;
+vector<int> module_global_addr;
+int module_num;  // index of module, 1, 2, 3
+int module_addr; //address of module, numInst
+int cur_linenum; //start from 1
+
 void parseerror(int errcode, int linenum, int lineoffset) {
     static char* errstr[] = {
         "NUM_EXPECTED",
@@ -47,8 +52,7 @@ string typeCheck(string token) {
     return "";
 
 }
-void readToken(ifstream & fin, int & cur_linenum, int & cur_offset, string & token, string & last_token, int & last_line_offset, int type) {
-    // token, cur_linenum, cur_offset
+void readToken(ifstream & fin, int & cur_offset, string & token, string & last_token, int & last_line_offset, int type) {
 
     string temp_line;
     if (fin >> token) {
@@ -105,19 +109,19 @@ void readToken(ifstream & fin, int & cur_linenum, int & cur_offset, string & tok
 
 }
 
-string readSym(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token, int & last_line_offset, int sym_type) {
+string readSym(ifstream & fin, int & cur_offset, string & last_token, int & last_line_offset, int sym_type) {
 
     string token;
-    readToken(fin, cur_linenum, cur_offset, token, last_token, last_line_offset, sym_type);
+    readToken(fin, cur_offset, token, last_token, last_line_offset, sym_type);
     return token;
 
 }
 
-int readInt(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token, int & last_line_offset) {
+int readInt(ifstream & fin, int & cur_offset, string & last_token, int & last_line_offset) {
 
     string token;
     int type = 1;
-    readToken(fin, cur_linenum, cur_offset, token, last_token, last_line_offset, type);
+    readToken(fin, cur_offset, token, last_token, last_line_offset, type);
     int number;
     if (typeCheck(token) == "num") {
 
@@ -129,16 +133,13 @@ int readInt(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_t
     return number;
 }
 void readDef(ifstream & fin,
-             int & cur_linenum,
              int & cur_offset,
              string & last_token,
-             int & module_addr,
-             int & module_num,
              int & last_line_offset) {
     int sym_type = 0;
-    string sym = readSym(fin, cur_linenum, cur_offset, last_token, last_line_offset, sym_type);
+    string sym = readSym(fin, cur_offset, last_token, last_line_offset, sym_type);
     //cout << "symbol " << sym << endl;
-    int val = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+    int val = readInt(fin, cur_offset, last_token, last_line_offset);
 
     map<string, pair<int,int>>::iterator it = local_module_list.find(sym);
     if (it == local_module_list.end())
@@ -147,110 +148,101 @@ void readDef(ifstream & fin,
 }
 
 void readDef2(ifstream & fin,
-             int & cur_linenum,
              int & cur_offset,
              string & last_token,
              int & last_line_offset) {
     int sym_type = 0;
-    string sym = readSym(fin, cur_linenum, cur_offset, last_token, last_line_offset, sym_type);
-    int val = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+    string sym = readSym(fin, cur_offset, last_token, last_line_offset, sym_type);
+    int val = readInt(fin, cur_offset, last_token, last_line_offset);
 }
 
 
-void readDefList(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token,
-                 int & module_addr,
-                 int & module_num,
+void readDefList(ifstream & fin, int & cur_offset, string & last_token,
                  int & last_line_offset) {
     //cout << "readDefList is called " << endl;
-    int numDefs = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+    int numDefs = readInt(fin, cur_offset, last_token, last_line_offset);
     if (numDefs > 16) {
         parseerror(4, cur_linenum, cur_offset);
         exit(1);
     }
     //cout << "numdef is " << numDefs << endl;
     for (int i = 0; i < numDefs; i++) {
-        readDef(fin, cur_linenum, cur_offset, last_token, module_addr, module_num, last_line_offset);
+        readDef(fin, cur_offset, last_token, last_line_offset);
     }
     //cout << "done with def " << endl;
 }
 
-void readDefList2(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token, int & last_line_offset) {
+void readDefList2(ifstream & fin, int & cur_offset, string & last_token, int & last_line_offset) {
     //cout << "readDefList is called " << endl;
-    int numDefs = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+    int numDefs = readInt(fin, cur_offset, last_token, last_line_offset);
     //cout << "numdef is " << numDefs << endl;
     for (int i = 0; i < numDefs; i++) {
-        readDef2(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+        readDef2(fin, cur_offset, last_token, last_line_offset);
     }
     //cout << "done with def " << endl;
 }
 
-void readUse(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token, int & last_line_offset) {
+void readUse(ifstream & fin, int & cur_offset, string & last_token, int & last_line_offset) {
     int sym_type = 0;
-    string sym = readSym(fin, cur_linenum, cur_offset, last_token, last_line_offset, sym_type);
+    string sym = readSym(fin, cur_offset, last_token, last_line_offset, sym_type);
     //cout << " used symbol " << sym << endl;
 }
 
-void readUse2(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token,
+void readUse2(ifstream & fin, int & cur_offset, string & last_token,
               vector<pair<string, bool>> & uselist,
               int & last_line_offset) {
     int sym_type = 0;
-    string sym = readSym(fin, cur_linenum, cur_offset, last_token, last_line_offset, sym_type);
+    string sym = readSym(fin, cur_offset, last_token, last_line_offset, sym_type);
     uselist.push_back(make_pair(sym, false));
     //cout << " used symbol " << sym << endl;
 }
 
-void readUseList(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token, int & last_line_offset) {
-    int numUse = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+void readUseList(ifstream & fin, int & cur_offset, string & last_token, int & last_line_offset) {
+    int numUse = readInt(fin, cur_offset, last_token, last_line_offset);
     if (numUse > 16) {
         parseerror(5, cur_linenum, cur_offset);
         exit(1);
     }
     for (int i = 0; i < numUse; i++) {
-        readUse(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+        readUse(fin, cur_offset, last_token, last_line_offset);
     }
     //cout << "done with use " << endl;
 }
 
-void readUseList2(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token,
-                 vector<pair<string, bool>> & uselist,
-                 int & last_line_offset) {
-    int numUse = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
-    //cout << "numUse is " << numUse << endl;
+void readUseList2(ifstream & fin, int & cur_offset, string & last_token, vector<pair<string, bool>> & uselist, int & last_line_offset) {
+    int numUse = readInt(fin, cur_offset, last_token, last_line_offset);
     for (int i = 0; i < numUse; i++) {
-        readUse2(fin, cur_linenum, cur_offset, last_token, uselist, last_line_offset);
+        readUse2(fin, cur_offset, last_token, uselist, last_line_offset);
     }
-    //cout << "done with use " << endl;
 }
 
-void readInst(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token, int & last_line_offset) {
+void readInst(ifstream & fin, int & cur_offset, string & last_token, int & last_line_offset) {
     int sym_type = 2; // inst
-    string sym = readSym(fin, cur_linenum, cur_offset, last_token, last_line_offset, sym_type);
-    int val = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
-    //cout << "inst " << sym << " = " << val << endl;
+    string sym = readSym(fin, cur_offset, last_token, last_line_offset, sym_type);
+    int val = readInt(fin, cur_offset, last_token, last_line_offset);
 }
 
 
-
-void readInstList(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token, int & module_addr, int & last_line_offset, int & total_inst) {
-    int numInst = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+void readInstList(ifstream & fin, int & cur_offset, string & last_token, int & last_line_offset, int & total_inst) {
+    int numInst = readInt(fin, cur_offset, last_token, last_line_offset);
     total_inst += numInst;
     if (total_inst > 512) {
         parseerror(6, cur_linenum, cur_offset);
         exit(1);
     }
     for (int i = 0; i < numInst; i++) {
-        readInst(fin, cur_linenum, cur_offset, last_token, last_line_offset);
-        //cout << " inst " << i << " has finished" << endl;
+        readInst(fin, cur_offset, last_token, last_line_offset);
     }
-    //cout << "done with inst " << endl;
 
     //rule 5
+
     for (map<string, pair<int, int>>::iterator it = local_module_list.begin(); it != local_module_list.end(); ++it) {
         if (it->second.second - module_addr > numInst) {
             cout << "Warning: Module " << it->second.first << ": " << it->first << " too big " << it->second.second << " max=(" << numInst-1 << ") assume zero relative" << endl;
             it->second.second = 0 + module_addr;
-            //cout << it->first << " = " << it->second.second << endl;
         }
+
+
         if (symbol_table.find(it->first) == symbol_table.end()) {
             symbol_table[it->first] = it->second;
             cout << it->first << " = " << it->second.second << endl;
@@ -265,19 +257,16 @@ void readInstList(ifstream & fin, int & cur_linenum, int & cur_offset, string & 
 }
 
 void readInst2(ifstream & fin,
-               int & cur_linenum,
                int & cur_offset,
                string & last_token,
                int cur_num,
-               vector<int> & module_global_addr,
                vector<pair<string, bool>> & uselist,
-               int & module_addr,
                vector<int> & instruction,
                int numInst,
                int & last_line_offset) {
     int sym_type = 2;
-    string sym = readSym(fin, cur_linenum, cur_offset, last_token, last_line_offset, sym_type);
-    int val = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
+    string sym = readSym(fin, cur_offset, last_token, last_line_offset, sym_type);
+    int val = readInt(fin, cur_offset, last_token, last_line_offset);
     //cout << "inst " << sym << " = " << val << endl;
     int result;
     if (sym == "E") {
@@ -341,26 +330,17 @@ void readInst2(ifstream & fin,
 }
 
 void readInstList2(ifstream & fin,
-                   int & cur_linenum,
                    int & cur_offset,
                    string & last_token,
-                   int & module_addr,
-                   vector<int> & module_global_addr,
                    vector<pair<string, bool>> & uselist,
                    vector<int> & instruction,
-                   int module_num,
                    int & last_line_offset) {
 
 
-    int numInst = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
-    //cout << "numInst is " << numInst << endl;
+    int numInst = readInt(fin, cur_offset, last_token, last_line_offset);
     for (int i = 0; i < numInst; i++) {
-        readInst2(fin, cur_linenum, cur_offset, last_token, i, module_global_addr, uselist, module_addr, instruction,
-                  numInst,
-                  last_line_offset);
-        //cout << " inst " << i << " has finished" << endl;
+        readInst2(fin, cur_offset, last_token, i, uselist, instruction, numInst, last_line_offset);
     }
-    //cout << "done with inst " << endl;
     module_addr += numInst;
 
     // rule 7
@@ -373,55 +353,49 @@ void readInstList2(ifstream & fin,
 
 }
 
-void pass1(vector<int> & module_global_addr, string filename) {
+void pass1(string filename) {
 
     ifstream fin(filename.c_str());
-    int cur_linenum = 1;
+    cur_linenum = 1;
     int cur_offset = 1;
     int last_line_offset = -1;
     string last_token;
-    int module_num = 0;
+    module_num = 0;
     fin.seekg(0, fin.end);
     int length = fin.tellg();
     fin.seekg(0, fin.beg);
     //cout << "length of file is " << length << endl;
-    int module_addr = 0;
+    module_addr = 0;
     module_global_addr.push_back(module_addr);
     cout << "Symbol Table" << endl;
     int total_inst = 0;
     while (!fin.eof()) {
         // parse the input if file is open
         module_num++;
-
-        readDefList(fin, cur_linenum, cur_offset, last_token, module_addr, module_num, last_line_offset);
-        readUseList(fin, cur_linenum, cur_offset, last_token, last_line_offset);
-        readInstList(fin, cur_linenum, cur_offset, last_token, module_addr, last_line_offset, total_inst);
+        readDefList(fin, cur_offset, last_token, last_line_offset);
+        readUseList(fin, cur_offset, last_token, last_line_offset);
+        readInstList(fin, cur_offset, last_token, last_line_offset, total_inst);
         module_global_addr.push_back(module_addr);
-        //cout << "module: " << module_num << " done##################################### " << endl;
         if (fin.tellg() == length)
             break;
     }
-    //cout << "data has been processed " << endl;
-
-//    for (auto elem : symbol_table)
-//        cout << elem.first << " = " << elem.second.second << endl;
     fin.close();
 
 }
 
-void pass2(vector<int> & module_global_addr, string filename) {
+void pass2(string filename) {
 
     ifstream fin(filename.c_str());
-    int cur_linenum = 1;
+    cur_linenum = 1;
     int cur_offset = 1;
     int last_line_offset = -1;
     string last_token;
-    int module_num = 0;
+    module_num = 0;
     fin.seekg(0, fin.end);
     int length = fin.tellg();
     fin.seekg(0, fin.beg);
     //cout << "length of file is " << length << endl;
-    int module_addr = 0;
+    module_addr = 0;
 
     vector<int> instruction;
     vector<string> all_uselist;
@@ -430,11 +404,9 @@ void pass2(vector<int> & module_global_addr, string filename) {
         // parse the input if file is open
         module_num++;
         vector<pair<string, bool>> uselist;
-        readDefList2(fin, cur_linenum, cur_offset, last_token, last_line_offset);
-        readUseList2(fin, cur_linenum, cur_offset, last_token, uselist, last_line_offset);
-        readInstList2(fin, cur_linenum, cur_offset, last_token, module_addr, module_global_addr, uselist, instruction,
-                      module_num, last_line_offset);
-        //cout << "module: " << module_num << " done##################################### " << endl;
+        readDefList2(fin, cur_offset, last_token, last_line_offset);
+        readUseList2(fin, cur_offset, last_token, uselist, last_line_offset);
+        readInstList2(fin, cur_offset, last_token, uselist, instruction, last_line_offset);
         for (auto item : uselist)
             all_uselist.push_back(item.first);
 
@@ -455,12 +427,8 @@ void pass2(vector<int> & module_global_addr, string filename) {
 
 int main() {
 
-    vector<int> module_global_addr;
+    string filename = "input-18";
 
-    string filename = "input-1";
-
-    pass1(module_global_addr, filename);
-
-
-    pass2(module_global_addr, filename);
+    pass1(filename);
+    pass2(filename);
 }
