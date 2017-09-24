@@ -9,6 +9,8 @@
 using namespace std;
 
 int last_valid_pos = 0;
+map<string, pair<int, int>> local_module_list;
+map<string, pair<int,int>> symbol_table;
 void parseerror(int errcode, int linenum, int lineoffset) {
     static char* errstr[] = {
         "NUM_EXPECTED",
@@ -164,7 +166,6 @@ void readDef(ifstream & fin,
              int & cur_linenum,
              int & cur_offset,
              string & last_token,
-             map<string, pair<int,int>> & symbol_table,
              int & module_addr,
              int & module_num,
              int & last_line_offset) {
@@ -173,25 +174,9 @@ void readDef(ifstream & fin,
     //cout << "symbol " << sym << endl;
     int val = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
 
-    //rule 5
-    if (val > 4) {
-        cout << "Warning: Module " << module_num << ": " << sym << " too big " << val << " max=(" << 4 << ") assume zero relative" << endl;
-        symbol_table[sym] = make_pair(module_num, 0 + module_addr);
-        cout << sym << " = " << 0 + module_addr << endl;
-    }
-    else {
-        //rule 2
-        map<string, pair<int,int>>::iterator it = symbol_table.find(sym);
-        if (it == symbol_table.end()) {
-            symbol_table[sym] = make_pair(module_num, val + module_addr);
-            cout << sym << " = " << val + module_addr << " ";
-        }
-        else {
-            cout << "Error: This variable is multiple times defined; first value used" << endl;
-        }
-        if (it == symbol_table.end())
-            cout << endl;
-    }
+    map<string, pair<int,int>>::iterator it = local_module_list.find(sym);
+    if (it == local_module_list.end())
+        local_module_list[sym] = make_pair(module_num, val + module_addr);
 
 }
 
@@ -207,7 +192,6 @@ void readDef2(ifstream & fin,
 
 
 void readDefList(ifstream & fin, int & cur_linenum, int & cur_offset, string & last_token,
-                 map<string, pair<int,int>> & symbol_table,
                  int & module_addr,
                  int & module_num,
                  int & last_line_offset) {
@@ -219,7 +203,7 @@ void readDefList(ifstream & fin, int & cur_linenum, int & cur_offset, string & l
     }
     //cout << "numdef is " << numDefs << endl;
     for (int i = 0; i < numDefs; i++) {
-        readDef(fin, cur_linenum, cur_offset, last_token, symbol_table,module_addr, module_num, last_line_offset);
+        readDef(fin, cur_linenum, cur_offset, last_token, module_addr, module_num, last_line_offset);
     }
     //cout << "done with def " << endl;
 }
@@ -293,6 +277,24 @@ void readInstList(ifstream & fin, int & cur_linenum, int & cur_offset, string & 
         //cout << " inst " << i << " has finished" << endl;
     }
     //cout << "done with inst " << endl;
+
+    //rule 5
+    for (map<string, pair<int, int>>::iterator it = local_module_list.begin(); it != local_module_list.end(); ++it) {
+        if (it->second.second - module_addr > numInst) {
+            cout << "Warning: Module " << it->second.first << ": " << it->first << " too big " << it->second.second << " max=(" << numInst-1 << ") assume zero relative" << endl;
+            it->second.second = 0 + module_addr;
+            //cout << it->first << " = " << it->second.second << endl;
+        }
+        if (symbol_table.find(it->first) == symbol_table.end()) {
+            symbol_table[it->first] = it->second;
+            cout << it->first << " = " << it->second.second << endl;
+        }
+        else {
+            // rule 2
+            cout << " Error: This variable is multiple times defined; first value used" << endl;
+        }
+    }
+    local_module_list.clear();
     module_addr += numInst;
 }
 
@@ -301,7 +303,6 @@ void readInst2(ifstream & fin,
                int & cur_offset,
                string & last_token,
                int cur_num,
-               map<string, pair<int,int>> & symbol_table,
                vector<int> & module_global_addr,
                vector<pair<string, bool>> & uselist,
                int & module_addr,
@@ -378,7 +379,6 @@ void readInstList2(ifstream & fin,
                    int & cur_offset,
                    string & last_token,
                    int & module_addr,
-                   map<string, pair<int,int>> & symbol_table,
                    vector<int> & module_global_addr,
                    vector<pair<string, bool>> & uselist,
                    vector<int> & instruction,
@@ -389,7 +389,7 @@ void readInstList2(ifstream & fin,
     int numInst = readInt(fin, cur_linenum, cur_offset, last_token, last_line_offset);
     //cout << "numInst is " << numInst << endl;
     for (int i = 0; i < numInst; i++) {
-        readInst2(fin, cur_linenum, cur_offset, last_token, i, symbol_table, module_global_addr, uselist, module_addr, instruction,
+        readInst2(fin, cur_linenum, cur_offset, last_token, i, module_global_addr, uselist, module_addr, instruction,
                   numInst,
                   last_line_offset);
         //cout << " inst " << i << " has finished" << endl;
@@ -407,7 +407,7 @@ void readInstList2(ifstream & fin,
 
 }
 
-void pass1(map<string, pair<int,int>> & symbol_table, vector<int> & module_global_addr, string filename) {
+void pass1(vector<int> & module_global_addr, string filename) {
 
     ifstream fin(filename.c_str());
     int cur_linenum = 1;
@@ -426,7 +426,8 @@ void pass1(map<string, pair<int,int>> & symbol_table, vector<int> & module_globa
     while (!fin.eof()) {
         // parse the input if file is open
         module_num++;
-        readDefList(fin, cur_linenum, cur_offset, last_token, symbol_table, module_addr, module_num, last_line_offset);
+
+        readDefList(fin, cur_linenum, cur_offset, last_token, module_addr, module_num, last_line_offset);
         readUseList(fin, cur_linenum, cur_offset, last_token, last_line_offset);
         readInstList(fin, cur_linenum, cur_offset, last_token, module_addr, last_line_offset, total_inst);
         module_global_addr.push_back(module_addr);
@@ -442,7 +443,7 @@ void pass1(map<string, pair<int,int>> & symbol_table, vector<int> & module_globa
 
 }
 
-void pass2(map<string, pair<int, int>> & symbol_table, vector<int> & module_global_addr, string filename) {
+void pass2(vector<int> & module_global_addr, string filename) {
 
     ifstream fin(filename.c_str());
     int cur_linenum = 1;
@@ -465,7 +466,7 @@ void pass2(map<string, pair<int, int>> & symbol_table, vector<int> & module_glob
         vector<pair<string, bool>> uselist;
         readDefList2(fin, cur_linenum, cur_offset, last_token, last_line_offset);
         readUseList2(fin, cur_linenum, cur_offset, last_token, uselist, last_line_offset);
-        readInstList2(fin, cur_linenum, cur_offset, last_token, module_addr, symbol_table, module_global_addr, uselist, instruction,
+        readInstList2(fin, cur_linenum, cur_offset, last_token, module_addr, module_global_addr, uselist, instruction,
                       module_num, last_line_offset);
         //cout << "module: " << module_num << " done##################################### " << endl;
         for (auto item : uselist)
@@ -488,13 +489,12 @@ void pass2(map<string, pair<int, int>> & symbol_table, vector<int> & module_glob
 
 int main() {
 
-    map<string, pair<int, int>> symbol_table;
     vector<int> module_global_addr;
 
-    string filename = "input-1";
+    string filename = "input-18";
 
-    pass1(symbol_table, module_global_addr, filename);
+    pass1(module_global_addr, filename);
 
 
-    pass2(symbol_table, module_global_addr, filename);
+    pass2(module_global_addr, filename);
 }
