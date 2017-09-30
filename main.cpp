@@ -98,6 +98,11 @@ void readToken(string & token, int type, char & c) {
             cur_offset = 0;
             if (token.length() != 0) {
                 //cout << "token " << token << endl;
+                if (token.length() > 16) {
+                    parseerror(3, cur_linenum - 1, last_valid_pos - token.length());
+                    exit(1);
+                }
+
                 return;
             }
 
@@ -108,6 +113,10 @@ void readToken(string & token, int type, char & c) {
             //cout <<"get c space" << " at offset " << cur_offset << endl;
             if (token.length() != 0) {
                 //cout << "token " << token << endl;
+                if (token.length() > 16) {
+                    parseerror(3, cur_linenum, cur_offset - token.length());
+                    exit(1);
+                }
                 return;
             }
         }
