@@ -9,8 +9,9 @@
 using namespace std;
 
 int last_valid_pos = 0;
-multimap<string, pair<int, int>> local_module_list;
+map<string, pair<int, int>> local_module_list; //rule 5
 map<string, pair<int,int>> symbol_table;
+map<string, bool> symbol_flag;
 vector<int> module_global_addr;
 int module_num;  // index of module, 1, 2, 3
 int module_addr; //address of module, numInst
@@ -209,8 +210,15 @@ void readDef() {
     int sym_type = 0;
     string sym = readSym(sym_type);
     int val = readInt();
-    local_module_list.insert(make_pair(sym, make_pair(module_num, val + module_addr)));
-
+    if (local_module_list.find(sym) == local_module_list.end()) {
+        local_module_list[sym] = make_pair(module_num, val + module_addr);
+    }
+    if (symbol_table.find(sym) == symbol_table.end()) {
+        symbol_table[sym] = make_pair(module_num, val + module_addr);
+    }
+    else {
+        symbol_flag[sym] = true; //if sym is met multiple times
+    }
 }
 
 void readDef2() {
@@ -292,22 +300,12 @@ void readInstList() {
     }
 
     //rule 5
-    for (multimap<string, pair<int, int>>::iterator it = local_module_list.begin(); it != local_module_list.end(); ++it) {
+    for (map<string, pair<int, int>>::iterator it = local_module_list.begin(); it != local_module_list.end(); ++it) {
         //cout << "module " << it->first << " addr " << it->second.second << endl;
         if (it->second.second - module_addr > numInst) {
             cout << "Warning: Module " << it->second.first << ": " << it->first << " too big " << it->second.second << " (max=" << numInst-1 << ") assume zero relative" << endl;
             it->second.second = 0 + module_addr;
-        }
-
-        if (symbol_table.find(it->first) == symbol_table.end()) {
-            symbol_table[it->first] = it->second;
-            cout << it->first << "=" << it->second.second;
-            if (local_module_list.count(it->first) == 1)
-                cout << endl;
-        }
-        else {
-            // rule 2
-            cout << " Error: This variable is multiple times defined; first value used" << endl;
+            symbol_table[it->first].second = 0 + module_addr;
         }
     }
     local_module_list.clear();
@@ -319,6 +317,15 @@ string int2str(int num) {
     convert << num;
     string temp = convert.str();
     while(temp.length() < 3)
+        temp = "0" + temp;
+    return temp;
+}
+
+string padZero(int num) {
+    ostringstream convert;
+    convert << num;
+    string temp = convert.str();
+    while (temp.length() < 4)
         temp = "0" + temp;
     return temp;
 }
@@ -335,37 +342,49 @@ void readInst2(int cur_num,
     if (sym == "E") {
         int opcode = val / 1000;
         int oprand = val % 1000;
-        // rule 6
-        if (oprand >= uselist.size()) {
-            cout << int2str(cur_num + module_addr) << ": " << val << " Error: External address exceeds length of uselist; treated as immediate" << endl;
+        // rule 11
+        if (opcode > 9) {
+            cout << int2str(cur_num + module_addr) << ": "  << 9999 << " Error: Illegal opcode; treated as 9999" << endl;
         }
         else {
-            string variable = uselist[oprand].first;
-            // rule 3
-            map<string, pair<int, int>>::iterator it = symbol_table.find(variable);
-            if (it == symbol_table.end()) {
-                result = opcode * 1000 + 0;
-                cout << int2str(cur_num + module_addr) << ": " << result << " ";
-                cout << "Error: " << variable << " is not defined; zero used" << endl;
+            // rule 6
+            if (oprand >= uselist.size()) {
+                cout << int2str(cur_num + module_addr) << ": " << val << " Error: External address exceeds length of uselist; treated as immediate" << endl;
             }
             else {
-                result = opcode * 1000 + symbol_table[variable].second;
-                cout << int2str(cur_num + module_addr) << ": " << result << endl;
+                string variable = uselist[oprand].first;
+                // rule 3
+                map<string, pair<int, int>>::iterator it = symbol_table.find(variable);
+                if (it == symbol_table.end()) {
+                    result = opcode * 1000 + 0;
+                    cout << int2str(cur_num + module_addr) << ": " << padZero(result) << " ";
+                    cout << "Error: " << variable << " is not defined; zero used" << endl;
+                }
+                else {
+                    result = opcode * 1000 + symbol_table[variable].second;
+                    cout << int2str(cur_num + module_addr) << ": " << padZero(result) << endl;
+                }
+                uselist[oprand].second = true;
             }
-            uselist[oprand].second = true;
         }
     }
     else if (sym == "R") {
         int opcode = val / 1000;
         int oprand = val % 1000;
-        // rule 9
-        if (oprand > numInst) {
-            result = opcode * 1000 + module_addr;
-            cout << int2str(cur_num + module_addr) << ": " << result << " Error: Relative address exceeds module size; zero used" << endl;
+        // rule 11
+        if (opcode > 9) {
+            cout << int2str(cur_num + module_addr) << ": "  << 9999 << " Error: Illegal opcode; treated as 9999" << endl;
         }
         else {
-            result = opcode * 1000 + oprand + module_addr;
-            cout << int2str(cur_num + module_addr) << ": " << result << endl;
+            // rule 9
+            if (oprand > numInst) {
+                result = opcode * 1000 + module_addr;
+                cout << int2str(cur_num + module_addr) << ": " << padZero(result) << " Error: Relative address exceeds module size; zero used" << endl;
+            }
+            else {
+                result = opcode * 1000 + oprand + module_addr;
+                cout << int2str(cur_num + module_addr) << ": " << padZero(result) << endl;
+            }
         }
     }
     else if (sym == "A") {
@@ -375,17 +394,20 @@ void readInst2(int cur_num,
         if (oprand > 512) {
             oprand = 0;
             result = opcode * 1000 + oprand;
-            cout << int2str(cur_num + module_addr) << ": " << result << " Error: Absolute address exceeds machine size; zero used" << endl;
+            cout << int2str(cur_num + module_addr) << ": " << padZero(result) << " Error: Absolute address exceeds machine size; zero used" << endl;
         }
         else {
             result = opcode * 1000 + oprand;
-            cout << int2str(cur_num + module_addr) << ": " << result << endl;
+            cout << int2str(cur_num + module_addr) << ": " << padZero(result) << endl;
         }
 
     }
     else {
         result = val;
-        cout << int2str(cur_num + module_addr) << ": " << result << endl;
+        if (result > 9999)
+            cout << int2str(cur_num + module_addr) << ": " << 9999 << " Error: Illegal immediate value; treated as 9999" << endl;
+        else
+            cout << int2str(cur_num + module_addr) << ": " << padZero(result) << endl;
     }
     instlist.push_back(result);
 }
@@ -420,7 +442,6 @@ void pass1(const string & filename) {
     //cout << "length of file is " << length << endl;
     module_addr = 0;
     module_global_addr.push_back(module_addr);
-    cout << "Symbol Table" << endl;
     while (fin.peek() != EOF) {
         module_num++;
         //cout << "module " << module_num << endl;
@@ -430,6 +451,19 @@ void pass1(const string & filename) {
         module_global_addr.push_back(module_addr);
     }
     fin.close();
+    cout << "Symbol Table" << endl;
+    for (map<string, pair<int, int>>::iterator it = symbol_table.begin(); it != symbol_table.end(); ++it) {
+
+        if (symbol_flag[it->first] == false)
+            cout << it->first << "=" << it->second.second << endl;
+
+        if (symbol_flag[it->first] == true) {
+            // rule 2
+            cout << it->first << "=" << it->second.second;
+            cout << " Error: This variable is multiple times defined; first value used" << endl;
+        }
+
+    }
 
 }
 
